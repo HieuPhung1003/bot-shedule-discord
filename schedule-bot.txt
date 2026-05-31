@@ -1,0 +1,47 @@
+Tên dự án: Discord Schedule Bot
+
+Mục đích: Bot Discord giúp bạn quản lý lịch nhắc nhở hàng ngày và ngày đặc biệt.
+Tính năng chính:
+    1.Đặt lịch ngày đặc biệt (/schedule-special)
+        *Bot hỏi đó là ngày gì
+        *Nhập ngày (sinh nhật, kỷ niệm, v.v.)
+        *Bot hỏi nhắc trước bao nhiêu ngày
+        *Nhập nhắc trước bao nhiêu ngày
+        *Tùy chọn: có nhắc định kì cho đến ngày đã nhập không
+        *Chọn có hoặc không
+        *Bot hỏi nhắc lúc mấy giờ
+        *Bot sẽ gửi DM nhắc nhở theo tùy chọn
+    2.Đặt công việc hàng ngày (/schedule-task)
+        *Nhập công việc (uống nước, tập thể dục, v.v.)
+        *Chọn tần suất nhắc (2 giờ, 30 phút, 1 ngày, v.v.)
+        *Bot nhắc hàng ngày theo tần suất
+    3.Xem tất cả lịch (/my-schedules)
+        *Hiển thị danh sách ngày đặc biệt
+        *Hiển thị danh sách công việc hàng ngày
+        *Hiển thị giờ nhắc (nếu có)
+    4.Hủy lịch (/cancel-schedule)
+        *Hủy ngày đặc biệt hoặc công việc
+        *Giao diện đơn giản với emoji reactions
+    5.Hiển thị trợ giúp (/help)
+        *Liệt kê tất cả lệnh
+
+Stack công nghệ:
+    1.Ngôn ngữ: Python 3.9+
+    2.Framework: discord.py 2.3.2
+    3.Database: JSON file (schedule_data.json)
+    4.Cấu hình: python-dotenv
+    5.Hosting: Railway (24/7)
+    6.Git: GitHub
+
+Yêu cầu tính năng:
+    1.Xử lý input tự nhiên:
+        *Ngày: 25/7, 25-7, 25 tháng 7, ...
+        *Thời gian: 14:30, 2:30 pm, 9 giờ sáng, ...
+        *Số ngày: 3 ngày, 3, 3 days, ...
+    2.Lưu trữ dữ liệu: 
+        *File JSON (không cần database)
+        *Dữ liệu lưu vĩnh viễn (tự động xóa khi hoàn thành hoặc chọn tính năng hủy)
+    3.Nhắc nhở thông minh:
+        *Kiểm tra mỗi phút
+        *Gửi DM (không spam server)
+        *Tránh nhắc lặp lại

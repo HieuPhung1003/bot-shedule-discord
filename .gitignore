@@ -1,0 +1,8 @@
+.env
+schedule_data.json
+bot.log
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
