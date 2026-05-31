@@ -34,13 +34,22 @@ class ViewSchedules(commands.Cog):
     async def my_schedules(self, interaction: discord.Interaction):
         data = dm.load_data()
         user = dm.get_user(data, str(interaction.user.id))
+        embed = self._build_embed(interaction.user.display_name, user)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
+
+    @commands.command(name="my-schedules")
+    async def my_schedules_prefix(self, ctx: commands.Context):
+        data = dm.load_data()
+        user = dm.get_user(data, str(ctx.author.id))
+        embed = self._build_embed(ctx.author.display_name, user)
+        await ctx.send(embed=embed)
+
+    def _build_embed(self, display_name: str, user: dict) -> discord.Embed:
         embed = discord.Embed(
-            title=f"📅 Lịch nhắc nhở của {interaction.user.display_name}",
+            title=f"📅 Lịch nhắc nhở của {display_name}",
             color=discord.Color.blue(),
         )
-
-        # Special days
         special_days = user.get("special_days", [])
         if special_days:
             lines = []
@@ -55,20 +64,17 @@ class ViewSchedules(commands.Cog):
         else:
             embed.add_field(name="🎉 Ngày đặc biệt", value="Chưa có.", inline=False)
 
-        # Daily tasks
         tasks = user.get("tasks", [])
         if tasks:
             lines = []
             for t in tasks:
-                lines.append(
-                    f"• **{t['name']}** — mỗi {minutes_to_label(t['frequency_minutes'])}"
-                )
+                lines.append(f"• **{t['name']}** — mỗi {minutes_to_label(t['frequency_minutes'])}")
             embed.add_field(name="📝 Công việc hàng ngày", value="\n".join(lines), inline=False)
         else:
             embed.add_field(name="📝 Công việc hàng ngày", value="Chưa có.", inline=False)
 
-        embed.set_footer(text="Dùng /cancel-schedule để hủy lịch.")
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        embed.set_footer(text="Dùng /cancel-schedule hoặc 'kurumi cancel-schedule' để hủy lịch.")
+        return embed
 
 
 async def setup(bot: commands.Bot):

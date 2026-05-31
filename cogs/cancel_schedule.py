@@ -55,40 +55,31 @@ class CancelSchedule(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
+    def _build_options(self, user: dict):
+        entries, options = [], []
+        for s in user.get("special_days", []):
+            entries.append({"id": s["id"], "type": "special_days", "name": s["name"]})
+            options.append(discord.SelectOption(
+                label=f"🎉 {s['name']}",
+                description=f"{s['day']}/{s['month']} | nhắc lúc {s['remind_time']}",
+                value=s["id"],
+            ))
+        for t in user.get("tasks", []):
+            freq = t["frequency_minutes"]
+            freq_label = f"{freq // 1440} ngày" if freq % 1440 == 0 else f"{freq // 60} giờ" if freq % 60 == 0 else f"{freq} phút"
+            entries.append({"id": t["id"], "type": "tasks", "name": t["name"]})
+            options.append(discord.SelectOption(
+                label=f"📝 {t['name']}",
+                description=f"Mỗi {freq_label}",
+                value=t["id"],
+            ))
+        return entries[:25], options[:25]
+
     @app_commands.command(name="cancel-schedule", description="Hủy một lịch nhắc nhở")
     async def cancel_schedule(self, interaction: discord.Interaction):
         data = dm.load_data()
         user = dm.get_user(data, str(interaction.user.id))
-
-        entries = []
-        options = []
-
-        for s in user.get("special_days", []):
-            entries.append({"id": s["id"], "type": "special_days", "name": s["name"]})
-            options.append(
-                discord.SelectOption(
-                    label=f"🎉 {s['name']}",
-                    description=f"{s['day']}/{s['month']} | nhắc lúc {s['remind_time']}",
-                    value=s["id"],
-                )
-            )
-
-        for t in user.get("tasks", []):
-            freq = t["frequency_minutes"]
-            if freq % 1440 == 0:
-                freq_label = f"{freq // 1440} ngày"
-            elif freq % 60 == 0:
-                freq_label = f"{freq // 60} giờ"
-            else:
-                freq_label = f"{freq} phút"
-            entries.append({"id": t["id"], "type": "tasks", "name": t["name"]})
-            options.append(
-                discord.SelectOption(
-                    label=f"📝 {t['name']}",
-                    description=f"Mỗi {freq_label}",
-                    value=t["id"],
-                )
-            )
+        entries, options = self._build_options(user)
 
         if not options:
             await interaction.response.send_message(
@@ -97,15 +88,26 @@ class CancelSchedule(commands.Cog):
             )
             return
 
-        # Discord select menu max 25 items
-        options = options[:25]
-        entries = entries[:25]
-
         view = discord.ui.View(timeout=60)
         view.add_item(CancelSelect(options, entries))
         await interaction.response.send_message(
             "🗑️ **Chọn lịch muốn hủy:**", view=view, ephemeral=True
         )
+
+
+    @commands.command(name="cancel-schedule")
+    async def cancel_schedule_prefix(self, ctx: commands.Context):
+        data = dm.load_data()
+        user = dm.get_user(data, str(ctx.author.id))
+        entries, options = self._build_options(user)
+
+        if not options:
+            await ctx.send("Bạn chưa có lịch nhắc nhở nào.")
+            return
+
+        view = discord.ui.View(timeout=60)
+        view.add_item(CancelSelect(options, entries))
+        await ctx.send("🗑️ **Chọn lịch muốn hủy:**", view=view)
 
 
 async def setup(bot: commands.Bot):

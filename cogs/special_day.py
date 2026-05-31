@@ -133,5 +133,79 @@ class SpecialDay(commands.Cog):
         await interaction.followup.send(embed=embed)
 
 
+    @commands.command(name="schedule-special")
+    async def schedule_special_prefix(self, ctx: commands.Context):
+        def check(m: discord.Message):
+            return m.author.id == ctx.author.id and m.channel.id == ctx.channel.id
+
+        async def ask_prefix(prompt: str):
+            await ctx.send(prompt)
+            try:
+                msg = await self.bot.wait_for("message", check=check, timeout=60)
+                return msg.content.strip()
+            except asyncio.TimeoutError:
+                await ctx.send("⏰ Hết thời gian chờ. Vui lòng thử lại.")
+                return None
+
+        name = await ask_prefix("🎉 **Đây là ngày gì?**\nVD: Sinh nhật mẹ, Kỷ niệm yêu nhau...")
+        if not name:
+            return
+
+        while True:
+            date_text = await ask_prefix("📅 **Nhập ngày** (VD: 25/7, 25-7, 25 tháng 7):")
+            if not date_text:
+                return
+            parsed = parse_date(date_text)
+            if parsed:
+                month, day = parsed
+                break
+            await ctx.send("❌ Không nhận ra định dạng ngày. Thử lại nhé!")
+
+        while True:
+            days_text = await ask_prefix("🔔 **Nhắc trước bao nhiêu ngày?** (VD: 3, 7, 1):")
+            if not days_text:
+                return
+            if days_text.isdigit() and int(days_text) >= 0:
+                remind_days_before = int(days_text)
+                break
+            await ctx.send("❌ Vui lòng nhập một số nguyên dương.")
+
+        view = YesNoView()
+        await ctx.send("🔁 **Có nhắc định kì mỗi ngày cho đến ngày đó không?**", view=view)
+        await view.wait()
+        if view.value is None:
+            await ctx.send("⏰ Hết thời gian chờ. Vui lòng thử lại.")
+            return
+        recurring_daily = view.value
+
+        while True:
+            time_text = await ask_prefix("🕐 **Nhắc lúc mấy giờ?** (VD: 9:00, 14:30, 9 giờ sáng, 9h30):")
+            if not time_text:
+                return
+            parsed_time = parse_time(time_text)
+            if parsed_time:
+                remind_time = parsed_time
+                break
+            await ctx.send("❌ Không nhận ra định dạng giờ. Thử lại nhé!")
+
+        data = dm.load_data()
+        dm.add_special_day(
+            data, str(ctx.author.id),
+            name=name, month=month, day=day,
+            remind_days_before=remind_days_before,
+            recurring_daily=recurring_daily,
+            remind_time=remind_time,
+        )
+
+        embed = discord.Embed(title="✅ Đã đặt lịch ngày đặc biệt!", color=discord.Color.green())
+        embed.add_field(name="Sự kiện", value=name, inline=True)
+        embed.add_field(name="Ngày", value=f"{day}/{month} hàng năm", inline=True)
+        embed.add_field(name="Nhắc trước", value=f"{remind_days_before} ngày", inline=True)
+        embed.add_field(name="Nhắc định kì", value="Có" if recurring_daily else "Không", inline=True)
+        embed.add_field(name="Giờ nhắc", value=remind_time, inline=True)
+        embed.set_footer(text="Bot sẽ gửi nhắc nhở qua DM của bạn.")
+        await ctx.send(embed=embed)
+
+
 async def setup(bot: commands.Bot):
     await bot.add_cog(SpecialDay(bot))

@@ -17,11 +17,23 @@ COGS = [
 ]
 
 
+def get_prefix(bot, message):
+    # "kurumi " prefix, không phân biệt hoa thường
+    if message.content[:7].lower() == "kurumi ":
+        return message.content[:7]
+    return commands.when_mentioned(bot, message)
+
+
 class ScheduleBot(commands.Bot):
     def __init__(self):
         intents = discord.Intents.default()
         intents.message_content = True
-        super().__init__(command_prefix="!", intents=intents)
+        super().__init__(
+            command_prefix=get_prefix,
+            intents=intents,
+            help_command=None,
+            case_insensitive=True,
+        )
 
     async def setup_hook(self):
         for cog in COGS:

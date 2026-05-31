@@ -118,5 +118,50 @@ class DailyTask(commands.Cog):
         await interaction.followup.send(embed=embed)
 
 
+    @commands.command(name="schedule-task")
+    async def schedule_task_prefix(self, ctx: commands.Context):
+        def check(m: discord.Message):
+            return m.author.id == ctx.author.id and m.channel.id == ctx.channel.id
+
+        await ctx.send("📝 **Tên công việc muốn được nhắc?**\nVD: Uống nước, Tập thể dục, Đọc sách...")
+        try:
+            msg = await self.bot.wait_for("message", check=check, timeout=60)
+            task_name = msg.content.strip()
+        except asyncio.TimeoutError:
+            await ctx.send("⏰ Hết thời gian chờ. Vui lòng thử lại.")
+            return
+
+        view = FrequencyView()
+        await ctx.send("⏱️ **Tần suất nhắc nhở?** Chọn hoặc nhập tay:", view=view)
+        await view.wait()
+
+        if view.value is None and not view.custom:
+            await ctx.send("⏰ Hết thời gian chờ. Vui lòng thử lại.")
+            return
+
+        if view.custom:
+            await ctx.send("✏️ Nhập tần suất (VD: 45 phút, 3 giờ, 1 ngày, 90m, 2h):")
+            try:
+                msg = await self.bot.wait_for("message", check=check, timeout=60)
+                freq_minutes = parse_duration(msg.content.strip())
+                if not freq_minutes or freq_minutes <= 0:
+                    await ctx.send("❌ Không nhận ra định dạng. Vui lòng thử lại.")
+                    return
+            except asyncio.TimeoutError:
+                await ctx.send("⏰ Hết thời gian chờ. Vui lòng thử lại.")
+                return
+        else:
+            freq_minutes = view.value
+
+        data = dm.load_data()
+        dm.add_task(data, str(ctx.author.id), name=task_name, frequency_minutes=freq_minutes)
+
+        embed = discord.Embed(title="✅ Đã đặt lịch công việc!", color=discord.Color.green())
+        embed.add_field(name="Công việc", value=task_name, inline=True)
+        embed.add_field(name="Tần suất", value=minutes_to_label(freq_minutes), inline=True)
+        embed.set_footer(text="Bot sẽ gửi nhắc nhở qua DM của bạn.")
+        await ctx.send(embed=embed)
+
+
 async def setup(bot: commands.Bot):
     await bot.add_cog(DailyTask(bot))
