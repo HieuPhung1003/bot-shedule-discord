@@ -46,7 +46,7 @@ class SpecialDay(commands.Cog):
         self.bot = bot
 
     @app_commands.command(
-        name="schedule-special",
+        name="hẹn-lịch",
         description="Đặt lịch nhắc ngày đặc biệt (sinh nhật, kỷ niệm...)",
     )
     async def schedule_special(self, interaction: discord.Interaction):
@@ -133,7 +133,7 @@ class SpecialDay(commands.Cog):
         await interaction.followup.send(embed=embed)
 
 
-    @commands.command(name="schedule-special")
+    @commands.command(name="hẹn-lịch")
     async def schedule_special_prefix(self, ctx: commands.Context):
         def check(m: discord.Message):
             return m.author.id == ctx.author.id and m.channel.id == ctx.channel.id

@@ -22,10 +22,10 @@ class HelpCmd(commands.Cog):
             title="📅 Discord Schedule Bot — Trợ giúp",
             color=discord.Color.blue(),
         )
-        embed.add_field(name="/schedule-special  |  kurumi schedule-special", value="Đặt lịch nhắc ngày đặc biệt (sinh nhật, kỷ niệm...)", inline=False)
-        embed.add_field(name="/schedule-task  |  kurumi schedule-task", value="Đặt công việc nhắc nhở hàng ngày (uống nước, tập thể dục...)", inline=False)
-        embed.add_field(name="/my-schedules  |  kurumi my-schedules", value="Xem toàn bộ lịch nhắc nhở của bạn", inline=False)
-        embed.add_field(name="/cancel-schedule  |  kurumi cancel-schedule", value="Hủy một lịch nhắc nhở", inline=False)
+        embed.add_field(name="/hẹn-lịch  |  kurumi hẹn-lịch", value="Đặt lịch nhắc ngày đặc biệt (sinh nhật, kỷ niệm...)", inline=False)
+        embed.add_field(name="/nhắc-việc  |  kurumi nhắc-việc", value="Đặt công việc nhắc nhở hàng ngày (uống nước, tập thể dục...)", inline=False)
+        embed.add_field(name="/xem-hẹn  |  kurumi xem-hẹn", value="Xem toàn bộ lịch nhắc nhở của bạn", inline=False)
+        embed.add_field(name="/hủy-hẹn  |  kurumi hủy-hẹn", value="Hủy một lịch nhắc nhở", inline=False)
         embed.add_field(name="/help  |  kurumi help", value="Hiển thị tin nhắn trợ giúp này", inline=False)
         embed.set_footer(text="Bot sẽ gửi nhắc nhở qua DM. Hãy đảm bảo DM của bạn đang mở.")
         return embed

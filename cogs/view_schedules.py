@@ -30,7 +30,7 @@ class ViewSchedules(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    @app_commands.command(name="my-schedules", description="Xem toàn bộ lịch nhắc nhở của bạn")
+    @app_commands.command(name="xem-hẹn", description="Xem toàn bộ lịch nhắc nhở của bạn")
     async def my_schedules(self, interaction: discord.Interaction):
         data = dm.load_data()
         user = dm.get_user(data, str(interaction.user.id))
@@ -38,7 +38,7 @@ class ViewSchedules(commands.Cog):
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
-    @commands.command(name="my-schedules")
+    @commands.command(name="xem-hẹn")
     async def my_schedules_prefix(self, ctx: commands.Context):
         data = dm.load_data()
         user = dm.get_user(data, str(ctx.author.id))

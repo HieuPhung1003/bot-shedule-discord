@@ -63,7 +63,7 @@ class DailyTask(commands.Cog):
         self.bot = bot
 
     @app_commands.command(
-        name="schedule-task",
+        name="nhắc-việc",
         description="Đặt công việc nhắc nhở hàng ngày (uống nước, tập thể dục...)",
     )
     async def schedule_task(self, interaction: discord.Interaction):
@@ -118,7 +118,7 @@ class DailyTask(commands.Cog):
         await interaction.followup.send(embed=embed)
 
 
-    @commands.command(name="schedule-task")
+    @commands.command(name="nhắc-việc")
     async def schedule_task_prefix(self, ctx: commands.Context):
         def check(m: discord.Message):
             return m.author.id == ctx.author.id and m.channel.id == ctx.channel.id

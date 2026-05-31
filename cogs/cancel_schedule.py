@@ -75,7 +75,7 @@ class CancelSchedule(commands.Cog):
             ))
         return entries[:25], options[:25]
 
-    @app_commands.command(name="cancel-schedule", description="Hủy một lịch nhắc nhở")
+    @app_commands.command(name="hủy-hẹn", description="Hủy một lịch nhắc nhở")
     async def cancel_schedule(self, interaction: discord.Interaction):
         data = dm.load_data()
         user = dm.get_user(data, str(interaction.user.id))
@@ -95,7 +95,7 @@ class CancelSchedule(commands.Cog):
         )
 
 
-    @commands.command(name="cancel-schedule")
+    @commands.command(name="hủy-hẹn")
     async def cancel_schedule_prefix(self, ctx: commands.Context):
         data = dm.load_data()
         user = dm.get_user(data, str(ctx.author.id))
