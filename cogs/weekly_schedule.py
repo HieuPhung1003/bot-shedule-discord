@@ -152,11 +152,14 @@ class ConfirmButton(discord.ui.Button):
         await dm.set_weekly_schedule(str(interaction.user.id), view.schedule)
         for child in view.children:
             child.disabled = True
-        embed = _build_setup_embed(view.schedule)
-        embed.color = discord.Color.green()
-        embed.title = "✅ Đã lưu lịch tuần!"
-        embed.set_footer(text="Dùng /xem-lịch-tuần để xem lại bất cứ lúc nào.")
-        await interaction.response.edit_message(embed=embed, view=view)
+        buf = schedule_image.generate(view.schedule, interaction.user.display_name)
+        file = discord.File(fp=buf, filename="weekly_schedule.png")
+        embed = discord.Embed(
+            title="✅ Đã lưu lịch tuần!",
+            color=discord.Color.green(),
+        )
+        embed.set_image(url="attachment://weekly_schedule.png")
+        await interaction.response.edit_message(embed=embed, attachments=[file], view=view)
         view.stop()
 
 
