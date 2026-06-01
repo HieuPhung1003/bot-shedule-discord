@@ -3,6 +3,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from utils import data_manager as dm
+from utils import schedule_image
 
 DAYS = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"]
 DAY_FULL = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "CN"]
@@ -58,23 +59,6 @@ def _setup_table(schedule: dict) -> str:
     return "\n".join(lines)
 
 
-def _period_table(schedule: dict, period: str) -> str:
-    lines = [_utop(), _urow(DAY_FULL), _umid()]
-    task_cells, time_cells = [], []
-    for d in DAYS:
-        e = schedule[d][period]
-        if e and e.get("task"):
-            task_cells.append(e["task"])
-            time_cells.append(_fmt_time(e.get("from", ""), e.get("to", "")))
-        else:
-            task_cells.append("——")
-            time_cells.append("")
-    lines.append(_urow(task_cells))
-    lines.append(_urow(time_cells))
-    lines.append(_ubot())
-    return "\n".join(lines)
-
-
 def _build_setup_embed(schedule: dict) -> discord.Embed:
     filled = sum(
         1 for d in DAYS for p in ("sang", "toi")
@@ -87,20 +71,6 @@ def _build_setup_embed(schedule: dict) -> discord.Embed:
     )
     embed.set_footer(text=f"Đã điền: {filled}/14 ô  •  Nhấn nút để nhập lịch  •  ✅ để lưu")
     return embed
-
-
-def _build_view_embeds(schedule: dict, display_name: str) -> list[discord.Embed]:
-    sang = discord.Embed(
-        title=f"🌅 Sáng  —  📅 Lịch tuần của {display_name}",
-        description=f"```\n{_period_table(schedule, 'sang')}\n```",
-        color=discord.Color.from_rgb(255, 140, 0),
-    )
-    toi = discord.Embed(
-        title="🌙 Tối",
-        description=f"```\n{_period_table(schedule, 'toi')}\n```",
-        color=discord.Color.from_rgb(63, 84, 186),
-    )
-    return [sang, toi]
 
 
 class SlotModal(discord.ui.Modal):
@@ -236,14 +206,26 @@ class WeeklySchedule(commands.Cog):
     @app_commands.command(name="xem-lịch-tuần", description="Xem lịch hoạt động trong tuần")
     async def view_weekly(self, interaction: discord.Interaction):
         schedule = await dm.get_weekly_schedule(str(interaction.user.id))
-        embeds = _build_view_embeds(schedule, interaction.user.display_name)
-        await interaction.response.send_message(embeds=embeds)
+        buf = schedule_image.generate(schedule, interaction.user.display_name)
+        file = discord.File(fp=buf, filename="weekly_schedule.png")
+        embed = discord.Embed(
+            title=f"📅 Lịch tuần của {interaction.user.display_name}",
+            color=discord.Color.from_rgb(30, 41, 59),
+        )
+        embed.set_image(url="attachment://weekly_schedule.png")
+        await interaction.response.send_message(embed=embed, file=file)
 
     @commands.command(name="xem-lịch-tuần")
     async def view_weekly_prefix(self, ctx: commands.Context):
         schedule = await dm.get_weekly_schedule(str(ctx.author.id))
-        embeds = _build_view_embeds(schedule, ctx.author.display_name)
-        await ctx.send(embeds=embeds)
+        buf = schedule_image.generate(schedule, ctx.author.display_name)
+        file = discord.File(fp=buf, filename="weekly_schedule.png")
+        embed = discord.Embed(
+            title=f"📅 Lịch tuần của {ctx.author.display_name}",
+            color=discord.Color.from_rgb(30, 41, 59),
+        )
+        embed.set_image(url="attachment://weekly_schedule.png")
+        await ctx.send(embed=embed, file=file)
 
 
 async def setup(bot: commands.Bot):
