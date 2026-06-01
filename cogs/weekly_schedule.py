@@ -17,74 +17,90 @@ def _cell(text: str) -> str:
     return text.ljust(COL)
 
 
-def _row(cells: list) -> str:
-    return "| " + " | ".join(_cell(c) for c in cells) + " |"
+def _urow(cells: list) -> str:
+    return "│ " + " │ ".join(_cell(c) for c in cells) + " │"
 
 
-def _sep() -> str:
-    return "+" + ("-" * (COL + 2) + "+") * 7
+def _utop() -> str:
+    seg = "─" * (COL + 2)
+    return "┌" + (seg + "┬") * 6 + seg + "┐"
+
+
+def _umid() -> str:
+    seg = "─" * (COL + 2)
+    return "├" + (seg + "┼") * 6 + seg + "┤"
+
+
+def _ubot() -> str:
+    seg = "─" * (COL + 2)
+    return "└" + (seg + "┴") * 6 + seg + "┘"
 
 
 def _fmt_time(from_t: str, to_t: str) -> str:
     if from_t and to_t:
         to_h = to_t.split(":")[0].zfill(2)
-        return f"{from_t[:5]}~{to_h}h"  # "07:00~09h" = 9 chars
+        return f"{from_t[:5]}~{to_h}h"
     elif from_t:
         return from_t[:5]
     return ""
 
 
-def _build_table(schedule: dict, setup_mode: bool = False) -> str:
-    sep = _sep()
-    lines = [sep, _row(DAY_FULL), sep]
-
+def _setup_table(schedule: dict) -> str:
+    lines = [_utop(), _urow(DAY_FULL), _umid()]
     for key, label in [("sang", "Sáng"), ("toi", "Tối")]:
-        lines.append(_row([f"[{label}]"] * 7))
-
+        lines.append(_urow([f"[{label}]"] * 7))
         task_cells = []
         for d in DAYS:
             e = schedule[d][key]
             task_cells.append(e["task"] if (e and e.get("task")) else "——")
-        lines.append(_row(task_cells))
+        lines.append(_urow(task_cells))
+        lines.append(_umid() if key == "sang" else _ubot())
+    return "\n".join(lines)
 
-        if not setup_mode:
-            time_cells = []
-            for d in DAYS:
-                e = schedule[d][key]
-                if e and e.get("task"):
-                    time_cells.append(_fmt_time(e.get("from", ""), e.get("to", "")))
-                else:
-                    time_cells.append("")
-            lines.append(_row(time_cells))
 
-        lines.append(sep)
-
+def _period_table(schedule: dict, period: str) -> str:
+    lines = [_utop(), _urow(DAY_FULL), _umid()]
+    task_cells, time_cells = [], []
+    for d in DAYS:
+        e = schedule[d][period]
+        if e and e.get("task"):
+            task_cells.append(e["task"])
+            time_cells.append(_fmt_time(e.get("from", ""), e.get("to", "")))
+        else:
+            task_cells.append("——")
+            time_cells.append("")
+    lines.append(_urow(task_cells))
+    lines.append(_urow(time_cells))
+    lines.append(_ubot())
     return "\n".join(lines)
 
 
 def _build_setup_embed(schedule: dict) -> discord.Embed:
-    table = _build_table(schedule, setup_mode=True)
     filled = sum(
         1 for d in DAYS for p in ("sang", "toi")
         if schedule[d][p] and schedule[d][p].get("task")
     )
     embed = discord.Embed(
         title="📅 Thiết lập lịch tuần",
-        description=f"```\n{table}\n```",
+        description=f"```\n{_setup_table(schedule)}\n```",
         color=discord.Color.blue(),
     )
     embed.set_footer(text=f"Đã điền: {filled}/14 ô  •  Nhấn nút để nhập lịch  •  ✅ để lưu")
     return embed
 
 
-def _build_view_embed(schedule: dict, display_name: str) -> discord.Embed:
-    table = _build_table(schedule, setup_mode=False)
-    embed = discord.Embed(
-        title=f"📅 Lịch tuần của {display_name}",
-        description=f"```\n{table}\n```",
-        color=discord.Color.purple(),
+def _build_view_embeds(schedule: dict, display_name: str) -> list[discord.Embed]:
+    sang = discord.Embed(
+        title=f"🌅 Sáng  —  📅 Lịch tuần của {display_name}",
+        description=f"```\n{_period_table(schedule, 'sang')}\n```",
+        color=discord.Color.from_rgb(255, 140, 0),
     )
-    return embed
+    toi = discord.Embed(
+        title="🌙 Tối",
+        description=f"```\n{_period_table(schedule, 'toi')}\n```",
+        color=discord.Color.from_rgb(63, 84, 186),
+    )
+    return [sang, toi]
 
 
 class SlotModal(discord.ui.Modal):
@@ -220,14 +236,14 @@ class WeeklySchedule(commands.Cog):
     @app_commands.command(name="xem-lịch-tuần", description="Xem lịch hoạt động trong tuần")
     async def view_weekly(self, interaction: discord.Interaction):
         schedule = await dm.get_weekly_schedule(str(interaction.user.id))
-        embed = _build_view_embed(schedule, interaction.user.display_name)
-        await interaction.response.send_message(embed=embed)
+        embeds = _build_view_embeds(schedule, interaction.user.display_name)
+        await interaction.response.send_message(embeds=embeds)
 
     @commands.command(name="xem-lịch-tuần")
     async def view_weekly_prefix(self, ctx: commands.Context):
         schedule = await dm.get_weekly_schedule(str(ctx.author.id))
-        embed = _build_view_embed(schedule, ctx.author.display_name)
-        await ctx.send(embed=embed)
+        embeds = _build_view_embeds(schedule, ctx.author.display_name)
+        await ctx.send(embeds=embeds)
 
 
 async def setup(bot: commands.Bot):
