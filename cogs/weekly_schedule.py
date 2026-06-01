@@ -208,24 +208,20 @@ class WeeklySchedule(commands.Cog):
         schedule = await dm.get_weekly_schedule(str(interaction.user.id))
         buf = schedule_image.generate(schedule, interaction.user.display_name)
         file = discord.File(fp=buf, filename="weekly_schedule.png")
-        embed = discord.Embed(
-            title=f"📅 Lịch tuần của {interaction.user.display_name}",
-            color=discord.Color.from_rgb(30, 41, 59),
+        await interaction.response.send_message(
+            content=f"📅 **Lịch tuần của {interaction.user.display_name}**",
+            file=file,
         )
-        embed.set_image(url="attachment://weekly_schedule.png")
-        await interaction.response.send_message(embed=embed, file=file)
 
     @commands.command(name="xem-lịch-tuần")
     async def view_weekly_prefix(self, ctx: commands.Context):
         schedule = await dm.get_weekly_schedule(str(ctx.author.id))
         buf = schedule_image.generate(schedule, ctx.author.display_name)
         file = discord.File(fp=buf, filename="weekly_schedule.png")
-        embed = discord.Embed(
-            title=f"📅 Lịch tuần của {ctx.author.display_name}",
-            color=discord.Color.from_rgb(30, 41, 59),
+        await ctx.send(
+            content=f"📅 **Lịch tuần của {ctx.author.display_name}**",
+            file=file,
         )
-        embed.set_image(url="attachment://weekly_schedule.png")
-        await ctx.send(embed=embed, file=file)
 
 
 async def setup(bot: commands.Bot):
