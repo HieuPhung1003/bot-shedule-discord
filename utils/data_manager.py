@@ -90,3 +90,27 @@ def update_task_reminded(data: dict, user_id: str, entry_id: str, datetime_str: 
             entry["last_reminded_at"] = datetime_str
             break
     save_data(data)
+
+
+_WEEK_DAYS = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"]
+
+
+def _empty_weekly() -> dict:
+    return {d: {"sang": None, "toi": None} for d in _WEEK_DAYS}
+
+
+def get_weekly_schedule(user_id: str) -> dict:
+    data = load_data()
+    stored = data["users"].get(user_id, {}).get("weekly_schedule")
+    if not stored:
+        return _empty_weekly()
+    schedule = _empty_weekly()
+    schedule.update(stored)
+    return schedule
+
+
+def set_weekly_schedule(user_id: str, schedule: dict) -> None:
+    data = load_data()
+    user = get_user(data, user_id)
+    user["weekly_schedule"] = schedule
+    save_data(data)

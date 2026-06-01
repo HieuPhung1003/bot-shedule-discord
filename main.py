@@ -14,6 +14,7 @@ COGS = [
     "cogs.view_schedules",
     "cogs.cancel_schedule",
     "cogs.reminder_loop",
+    "cogs.weekly_schedule",
 ]
 
 
