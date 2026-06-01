@@ -8,118 +8,131 @@ from utils import schedule_image
 DAYS = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"]
 DAY_FULL = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "CN"]
 DAY_IDX = {d: i for i, d in enumerate(DAYS)}
-COL = 9
 
 
-def _cell(text: str) -> str:
-    text = str(text)
-    if len(text) > COL:
-        text = text[: COL - 1] + "…"
-    return text.ljust(COL)
+def _count_filled(schedule: dict) -> int:
+    return sum(1 for d in DAYS for p in ("sang", "toi") if schedule[d][p])
 
 
-def _urow(cells: list) -> str:
-    return "│ " + " │ ".join(_cell(c) for c in cells) + " │"
-
-
-def _utop() -> str:
-    seg = "─" * (COL + 2)
-    return "┌" + (seg + "┬") * 6 + seg + "┐"
-
-
-def _umid() -> str:
-    seg = "─" * (COL + 2)
-    return "├" + (seg + "┼") * 6 + seg + "┤"
-
-
-def _ubot() -> str:
-    seg = "─" * (COL + 2)
-    return "└" + (seg + "┴") * 6 + seg + "┘"
-
-
-def _fmt_time(from_t: str, to_t: str) -> str:
-    if from_t and to_t:
-        to_h = to_t.split(":")[0].zfill(2)
-        return f"{from_t[:5]}~{to_h}h"
-    elif from_t:
-        return from_t[:5]
-    return ""
-
-
-def _setup_table(schedule: dict) -> str:
-    lines = [_utop(), _urow(DAY_FULL), _umid()]
-    for key, label in [("sang", "Sáng"), ("toi", "Tối")]:
-        lines.append(_urow([f"[{label}]"] * 7))
-        task_cells = []
-        for d in DAYS:
-            e = schedule[d][key]
-            task_cells.append(e["task"] if (e and e.get("task")) else "——")
-        lines.append(_urow(task_cells))
-        lines.append(_umid() if key == "sang" else _ubot())
-    return "\n".join(lines)
-
-
-def _build_setup_embed(schedule: dict) -> discord.Embed:
-    filled = sum(
-        1 for d in DAYS for p in ("sang", "toi")
-        if schedule[d][p] and schedule[d][p].get("task")
-    )
+def _make_setup_embed(filled: int) -> discord.Embed:
     embed = discord.Embed(
         title="📅 Thiết lập lịch tuần",
-        description=f"```\n{_setup_table(schedule)}\n```",
+        description=(
+            f"Đã điền: {filled}/14 ô  •  Nhấn nút để chỉnh ô  •  ✅ để lưu\n"
+            "*(Mỗi dòng: `Tên việc | HH:MM | HH:MM` — xóa dòng = xóa việc đó)*"
+        ),
         color=discord.Color.blue(),
     )
-    embed.set_footer(text=f"Đã điền: {filled}/14 ô  •  Nhấn nút để nhập lịch  •  ✅ để lưu")
+    embed.set_image(url="attachment://weekly_schedule.png")
     return embed
 
 
+def _to_minutes(t: str) -> int | None:
+    """Parse HH:MM → total minutes. Returns None if invalid."""
+    try:
+        h, m = t.strip().split(":")
+        return int(h) * 60 + int(m)
+    except (ValueError, AttributeError):
+        return None
+
+
+def _times_overlap(a_from: str, a_to: str, b_from: str, b_to: str) -> bool:
+    """True if [a_from, a_to) overlaps [b_from, b_to). Back-to-back is NOT overlap."""
+    af, at_ = _to_minutes(a_from), _to_minutes(a_to)
+    bf, bt  = _to_minutes(b_from), _to_minutes(b_to)
+    if None in (af, at_, bf, bt):
+        return False
+    return af < bt and at_ > bf
+
+
+def _slot_to_text(entries: list) -> str:
+    """Serialize a slot's task list to multi-line text for the modal default."""
+    lines = []
+    for e in entries:
+        line = e["task"]
+        if e.get("from"):
+            line += f" | {e['from']}"
+            if e.get("to"):
+                line += f" | {e['to']}"
+        lines.append(line)
+    return "\n".join(lines)
+
+
+def _parse_task_lines(raw: str) -> list[dict]:
+    """Parse the modal text into a list of task dicts. Ignores blank lines."""
+    entries = []
+    for line in raw.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        parts = [p.strip() for p in line.split("|")]
+        name = parts[0].strip()
+        if not name:
+            continue
+        from_t = parts[1] if len(parts) > 1 else ""
+        to_t   = parts[2] if len(parts) > 2 else ""
+        entries.append({"task": name, "from": from_t, "to": to_t})
+    return entries
+
+
 class SlotModal(discord.ui.Modal):
-    def __init__(self, day: str, period: str, existing: dict | None, view: "WeeklySetupView"):
+    def __init__(self, day: str, period: str, existing: list, view: "WeeklySetupView"):
         period_label = "Sáng" if period == "sang" else "Tối"
         super().__init__(title=f"{DAY_FULL[DAY_IDX[day]]} — {period_label}")
         self._setup_view = view
         self.day = day
         self.period = period
 
-        ex = existing or {}
-        self.task_input = discord.ui.TextInput(
-            label="Công việc (để trống = xóa ô)",
-            placeholder="VD: Học bài, Tập thể dục...",
-            default=ex.get("task", ""),
-            max_length=40,
+        self.tasks_input = discord.ui.TextInput(
+            label="Việc (mỗi dòng: Tên | HH:MM | HH:MM)",
+            style=discord.TextStyle.long,
+            placeholder="VD:\nĐấm Thành | 07:00 | 09:00\nĐấm Hà | 09:00 | 11:00",
+            default=_slot_to_text(existing),
+            max_length=500,
             required=False,
         )
-        self.from_input = discord.ui.TextInput(
-            label="Từ giờ (HH:MM)",
-            placeholder="VD: 07:00",
-            default=ex.get("from", ""),
-            max_length=5,
-            required=False,
-        )
-        self.to_input = discord.ui.TextInput(
-            label="Đến giờ (HH:MM)",
-            placeholder="VD: 09:00",
-            default=ex.get("to", ""),
-            max_length=5,
-            required=False,
-        )
-        self.add_item(self.task_input)
-        self.add_item(self.from_input)
-        self.add_item(self.to_input)
+        self.add_item(self.tasks_input)
 
     async def on_submit(self, interaction: discord.Interaction):
-        task = self.task_input.value.strip()
-        self._setup_view.schedule[self.day][self.period] = (
-            {
-                "task": task,
-                "from": self.from_input.value.strip(),
-                "to": self.to_input.value.strip(),
-            }
-            if task
-            else None
+        raw = self.tasks_input.value.strip()
+
+        if not raw:
+            self._setup_view.schedule[self.day][self.period] = []
+        else:
+            entries = _parse_task_lines(raw)
+
+            # Deduplicate names (case-insensitive, keep first occurrence)
+            seen: set[str] = set()
+            deduped = []
+            for e in entries:
+                if e["task"].lower() not in seen:
+                    seen.add(e["task"].lower())
+                    deduped.append(e)
+
+            # Check time overlaps between every pair
+            for i in range(len(deduped)):
+                for j in range(i + 1, len(deduped)):
+                    a, b = deduped[i], deduped[j]
+                    if a.get("from") and a.get("to") and b.get("from") and b.get("to"):
+                        if _times_overlap(a["from"], a["to"], b["from"], b["to"]):
+                            await interaction.response.send_message(
+                                f"❌ Giờ trùng nhau: **{a['task']}** ({a['from']}–{a['to']}) "
+                                f"và **{b['task']}** ({b['from']}–{b['to']}).",
+                                ephemeral=True,
+                            )
+                            return
+
+            deduped.sort(key=lambda e: _to_minutes(e.get("from") or "") or 9999)
+            self._setup_view.schedule[self.day][self.period] = deduped
+
+        filled = _count_filled(self._setup_view.schedule)
+        buf = schedule_image.generate(self._setup_view.schedule, interaction.user.display_name)
+        file = discord.File(fp=buf, filename="weekly_schedule.png")
+        await interaction.response.edit_message(
+            embed=_make_setup_embed(filled),
+            attachments=[file],
+            view=self._setup_view,
         )
-        embed = _build_setup_embed(self._setup_view.schedule)
-        await interaction.response.edit_message(embed=embed, view=self._setup_view)
 
 
 class SlotButton(discord.ui.Button):
@@ -154,10 +167,7 @@ class ConfirmButton(discord.ui.Button):
             child.disabled = True
         buf = schedule_image.generate(view.schedule, interaction.user.display_name)
         file = discord.File(fp=buf, filename="weekly_schedule.png")
-        embed = discord.Embed(
-            title="✅ Đã lưu lịch tuần!",
-            color=discord.Color.green(),
-        )
+        embed = discord.Embed(title="✅ Đã lưu lịch tuần!", color=discord.Color.green())
         embed.set_image(url="attachment://weekly_schedule.png")
         await interaction.response.edit_message(embed=embed, attachments=[file], view=view)
         view.stop()
@@ -196,15 +206,19 @@ class WeeklySchedule(commands.Cog):
     async def setup_weekly(self, interaction: discord.Interaction):
         schedule = await dm.get_weekly_schedule(str(interaction.user.id))
         view = WeeklySetupView(interaction.user.id, schedule)
-        embed = _build_setup_embed(schedule)
-        await interaction.response.send_message(embed=embed, view=view)
+        filled = _count_filled(schedule)
+        buf = schedule_image.generate(schedule, interaction.user.display_name)
+        file = discord.File(fp=buf, filename="weekly_schedule.png")
+        await interaction.response.send_message(embed=_make_setup_embed(filled), file=file, view=view)
 
     @commands.command(name="lịch-tuần")
     async def setup_weekly_prefix(self, ctx: commands.Context):
         schedule = await dm.get_weekly_schedule(str(ctx.author.id))
         view = WeeklySetupView(ctx.author.id, schedule)
-        embed = _build_setup_embed(schedule)
-        await ctx.send(embed=embed, view=view)
+        filled = _count_filled(schedule)
+        buf = schedule_image.generate(schedule, ctx.author.display_name)
+        file = discord.File(fp=buf, filename="weekly_schedule.png")
+        await ctx.send(embed=_make_setup_embed(filled), file=file, view=view)
 
     @app_commands.command(name="xem-lịch-tuần", description="Xem lịch hoạt động trong tuần")
     async def view_weekly(self, interaction: discord.Interaction):

@@ -35,15 +35,31 @@ async def init_db(pool: asyncpg.Pool) -> None:
         """)
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS weekly_slots (
+                id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
                 day TEXT NOT NULL,
                 period TEXT NOT NULL,
                 task TEXT NOT NULL,
                 time_from TEXT,
-                time_to TEXT,
-                PRIMARY KEY (user_id, day, period)
+                time_to TEXT
             )
         """)
+        # Migration: old schema used composite PK (user_id, day, period) with no id column
+        has_id = await conn.fetchval(
+            "SELECT COUNT(*) FROM information_schema.columns "
+            "WHERE table_name='weekly_slots' AND column_name='id'"
+        )
+        if not has_id:
+            await conn.execute("ALTER TABLE weekly_slots DROP CONSTRAINT weekly_slots_pkey")
+            await conn.execute("ALTER TABLE weekly_slots ADD COLUMN id TEXT")
+            rows = await conn.fetch("SELECT user_id, day, period FROM weekly_slots")
+            for r in rows:
+                await conn.execute(
+                    "UPDATE weekly_slots SET id=$1 WHERE user_id=$2 AND day=$3 AND period=$4",
+                    str(uuid.uuid4()), r["user_id"], r["day"], r["period"],
+                )
+            await conn.execute("ALTER TABLE weekly_slots ALTER COLUMN id SET NOT NULL")
+            await conn.execute("ALTER TABLE weekly_slots ADD PRIMARY KEY (id)")
 
 
 async def close() -> None:
@@ -134,7 +150,7 @@ async def remove_entry(user_id: str, entry_type: str, entry_id: str) -> bool:
 # ── Weekly Schedule ───────────────────────────────────────────────────────────
 
 def _empty_weekly() -> dict:
-    return {d: {"sang": None, "toi": None} for d in _WEEK_DAYS}
+    return {d: {"sang": [], "toi": []} for d in _WEEK_DAYS}
 
 
 async def get_weekly_schedule(user_id: str) -> dict:
@@ -144,11 +160,11 @@ async def get_weekly_schedule(user_id: str) -> dict:
     )
     schedule = _empty_weekly()
     for r in rows:
-        schedule[r["day"]][r["period"]] = {
+        schedule[r["day"]][r["period"]].append({
             "task": r["task"],
             "from": r["time_from"] or "",
             "to": r["time_to"] or "",
-        }
+        })
     return schedule
 
 
@@ -157,18 +173,19 @@ async def set_weekly_schedule(user_id: str, schedule: dict) -> None:
         async with conn.transaction():
             await conn.execute("DELETE FROM weekly_slots WHERE user_id = $1", user_id)
             for day, periods in schedule.items():
-                for period, entry in periods.items():
-                    if entry and entry.get("task"):
-                        await conn.execute(
-                            """
-                            INSERT INTO weekly_slots
-                                (user_id, day, period, task, time_from, time_to)
-                            VALUES ($1, $2, $3, $4, $5, $6)
-                            """,
-                            user_id, day, period, entry["task"],
-                            entry.get("from") or None,
-                            entry.get("to") or None,
-                        )
+                for period, entries in periods.items():
+                    for entry in entries:
+                        if entry and entry.get("task"):
+                            await conn.execute(
+                                """
+                                INSERT INTO weekly_slots
+                                    (id, user_id, day, period, task, time_from, time_to)
+                                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                                """,
+                                str(uuid.uuid4()), user_id, day, period, entry["task"],
+                                entry.get("from") or None,
+                                entry.get("to") or None,
+                            )
 
 
 # ── Reminder loop ─────────────────────────────────────────────────────────────

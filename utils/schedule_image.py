@@ -11,11 +11,11 @@ _ASSET_DIR = Path(__file__).parent.parent / "assets" / "fonts"
 # ── Layout ────────────────────────────────────────────────────────────────────
 LABEL_W = 58
 HEADER_H = 48
-ROW_H = 120
+ROW_H = 160
 PAD = 14
 COL_W = 118
 IMG_W = PAD + LABEL_W + COL_W * 7 + PAD   # 918
-IMG_H = PAD + HEADER_H + ROW_H * 2 + PAD  # 316
+IMG_H = PAD + HEADER_H + ROW_H * 2 + PAD  # 396
 
 # ── Palette ───────────────────────────────────────────────────────────────────
 C_BG         = (255, 255, 255)
@@ -102,26 +102,48 @@ def generate(schedule: dict, display_name: str) -> io.BytesIO:
 
         for i, dkey in enumerate(DAYS):
             cx = x0 + LABEL_W + i * COL_W
-            entry = schedule[dkey][pkey]
+            entries = schedule[dkey][pkey]  # list of task dicts
 
             draw.rectangle([cx, ry, cx + COL_W, ry + ROW_H], fill=C_EMPTY_BG)
 
-            if entry and entry.get("task"):
-                EP = 7
-                ex1, ey1 = cx + EP, ry + EP
-                ex2, ey2 = cx + COL_W - EP, ry + ROW_H - EP
-                draw.rounded_rectangle([ex1, ey1, ex2, ey2], radius=8, fill=pcolor)
+            if entries:
+                EP = 6
+                ex1, ex2 = cx + EP, cx + COL_W - EP
+                available_h = ROW_H - 2 * EP
 
-                max_w = ex2 - ex1 - 12
-                task = _truncate(entry["task"], draw, f_bd, max_w)
-                draw.text((ex1 + 7, ey1 + 8), task, fill=C_EVENT_FG, font=f_bd)
+                n = min(len(entries), 3)
+                visible = entries[:n]
+                more = len(entries) - n
 
-                from_t = entry.get("from", "")
-                to_t   = entry.get("to", "")
-                if from_t or to_t:
-                    ts = f"{from_t} – {to_t}" if (from_t and to_t) else (from_t or to_t)
-                    bb = draw.textbbox((0, 0), ts, font=f_sm)
-                    draw.text((ex1 + 7, ey2 - (bb[3] - bb[1]) - 7), ts, fill=C_EVENT_FG, font=f_sm)
+                item_h = min(80, max(44, (available_h - (n - 1) * 4) // n))
+                total_h = n * item_h + (n - 1) * 4
+                top_start = ry + EP + (available_h - total_h) // 2
+
+                for k, entry in enumerate(visible):
+                    ey1 = top_start + k * (item_h + 4)
+                    ey2 = ey1 + item_h
+                    draw.rounded_rectangle([ex1, ey1, ex2, ey2], radius=6, fill=pcolor)
+
+                    max_w = ex2 - ex1 - 12
+                    task = _truncate(entry["task"], draw, f_bd, max_w)
+                    draw.text((ex1 + 7, ey1 + 6), task, fill=C_EVENT_FG, font=f_bd)
+
+                    from_t = entry.get("from", "")
+                    to_t = entry.get("to", "")
+                    if from_t or to_t:
+                        ts = f"{from_t}–{to_t}" if (from_t and to_t) else (from_t or to_t)
+                        bb = draw.textbbox((0, 0), ts, font=f_sm)
+                        ty = ey2 - (bb[3] - bb[1]) - 5
+                        if ty > ey1 + 20:
+                            draw.text((ex1 + 7, ty), ts, fill=C_EVENT_FG, font=f_sm)
+
+                if more > 0:
+                    last_ey2 = top_start + (n - 1) * (item_h + 4) + item_h
+                    more_text = f"+{more} việc"
+                    bb = draw.textbbox((0, 0), more_text, font=f_sm)
+                    my = last_ey2 + 3
+                    if my + (bb[3] - bb[1]) <= ry + ROW_H - 2:
+                        draw.text((ex1 + 4, my), more_text, fill=C_EMPTY_FG, font=f_sm)
             else:
                 _center(draw, (cx, ry, cx + COL_W, ry + ROW_H), "—", f_bd, C_EMPTY_FG)
 
