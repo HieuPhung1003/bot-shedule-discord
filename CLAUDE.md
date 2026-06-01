@@ -13,9 +13,6 @@ python -u main.py
 
 # Run in background with persistent log
 nohup python -u main.py > bot.log 2>&1 &
-
-# Deploy to Railway
-~/.railway/bin/railway up --detach --service accomplished-analysis
 ```
 
 ## Architecture
