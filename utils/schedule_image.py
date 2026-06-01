@@ -1,9 +1,12 @@
 import io
+from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
 DAYS = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"]
 DAY_FULL = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "CN"]
+
+_ASSET_DIR = Path(__file__).parent.parent / "assets" / "fonts"
 
 # ── Layout ────────────────────────────────────────────────────────────────────
 LABEL_W = 58
@@ -28,10 +31,12 @@ C_TOI        = (99,  102, 241)  # indigo-500
 C_EVENT_FG   = (255, 255, 255)
 
 _BOLD = [
+    str(_ASSET_DIR / "DejaVuSans-Bold.ttf"),
     "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
     "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
 ]
 _REGULAR = [
+    str(_ASSET_DIR / "DejaVuSans.ttf"),
     "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
     "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
 ]
