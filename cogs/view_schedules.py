@@ -32,25 +32,25 @@ class ViewSchedules(commands.Cog):
 
     @app_commands.command(name="xem-hẹn", description="Xem toàn bộ lịch nhắc nhở của bạn")
     async def my_schedules(self, interaction: discord.Interaction):
-        data = dm.load_data()
-        user = dm.get_user(data, str(interaction.user.id))
-        embed = self._build_embed(interaction.user.display_name, user)
+        user_id = str(interaction.user.id)
+        special_days = await dm.get_special_days(user_id)
+        tasks = await dm.get_tasks(user_id)
+        embed = self._build_embed(interaction.user.display_name, special_days, tasks)
         await interaction.response.send_message(embed=embed, ephemeral=True)
-
 
     @commands.command(name="xem-hẹn")
     async def my_schedules_prefix(self, ctx: commands.Context):
-        data = dm.load_data()
-        user = dm.get_user(data, str(ctx.author.id))
-        embed = self._build_embed(ctx.author.display_name, user)
+        user_id = str(ctx.author.id)
+        special_days = await dm.get_special_days(user_id)
+        tasks = await dm.get_tasks(user_id)
+        embed = self._build_embed(ctx.author.display_name, special_days, tasks)
         await ctx.send(embed=embed)
 
-    def _build_embed(self, display_name: str, user: dict) -> discord.Embed:
+    def _build_embed(self, display_name: str, special_days: list, tasks: list) -> discord.Embed:
         embed = discord.Embed(
             title=f"📅 Lịch nhắc nhở của {display_name}",
             color=discord.Color.blue(),
         )
-        special_days = user.get("special_days", [])
         if special_days:
             lines = []
             for s in special_days:
@@ -64,7 +64,6 @@ class ViewSchedules(commands.Cog):
         else:
             embed.add_field(name="🎉 Ngày đặc biệt", value="Chưa có.", inline=False)
 
-        tasks = user.get("tasks", [])
         if tasks:
             lines = []
             for t in tasks:
@@ -73,7 +72,7 @@ class ViewSchedules(commands.Cog):
         else:
             embed.add_field(name="📝 Công việc hàng ngày", value="Chưa có.", inline=False)
 
-        embed.set_footer(text="Dùng /cancel-schedule hoặc 'kurumi cancel-schedule' để hủy lịch.")
+        embed.set_footer(text="Dùng /hủy-hẹn hoặc 'kurumi hủy-hẹn' để hủy lịch.")
         return embed
 
 

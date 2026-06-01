@@ -1,9 +1,12 @@
 import asyncio
 import os
 
+import asyncpg
 import discord
 from discord.ext import commands
 from dotenv import load_dotenv
+
+from utils import data_manager as dm
 
 load_dotenv()
 
@@ -37,10 +40,21 @@ class ScheduleBot(commands.Bot):
         )
 
     async def setup_hook(self):
+        db_url = os.getenv("DATABASE_URL")
+        if not db_url:
+            raise RuntimeError("DATABASE_URL not set in .env")
+        ssl = "require" if "localhost" not in db_url and "127.0.0.1" not in db_url else None
+        pool = await asyncpg.create_pool(db_url, ssl=ssl)
+        await dm.init_db(pool)
+        print("Database connected and tables ready.")
         for cog in COGS:
             await self.load_extension(cog)
         await self.tree.sync()
         print("Slash commands synced.")
+
+    async def close(self):
+        await dm.close()
+        await super().close()
 
     async def on_ready(self):
         print(f"Logged in as {self.user} (ID: {self.user.id})")

@@ -111,9 +111,7 @@ class SpecialDay(commands.Cog):
             await interaction.followup.send("❌ Không nhận ra định dạng giờ. Thử lại nhé!")
 
         # Save
-        data = dm.load_data()
-        dm.add_special_day(
-            data,
+        await dm.add_special_day(
             str(interaction.user.id),
             name=name,
             month=month,
@@ -188,9 +186,8 @@ class SpecialDay(commands.Cog):
                 break
             await ctx.send("❌ Không nhận ra định dạng giờ. Thử lại nhé!")
 
-        data = dm.load_data()
-        dm.add_special_day(
-            data, str(ctx.author.id),
+        await dm.add_special_day(
+            str(ctx.author.id),
             name=name, month=month, day=day,
             remind_days_before=remind_days_before,
             recurring_daily=recurring_daily,

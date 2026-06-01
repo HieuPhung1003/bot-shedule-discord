@@ -1,4 +1,4 @@
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
 import discord
@@ -29,16 +29,14 @@ class ReminderLoop(commands.Cog):
         now = datetime.now(TZ)
         today = now.date()
         current_time = now.strftime("%H:%M")
-        now_iso = now.isoformat()
 
-        data = dm.load_data()
-        changed = False
+        all_data = await dm.get_all_reminder_data()
 
-        for user_id, user_data in data["users"].items():
+        for user_id, user_data in all_data.items():
             discord_user = None
 
             # --- Special days ---
-            for entry in user_data.get("special_days", []):
+            for entry in user_data["special_days"]:
                 remaining = days_until(entry["month"], entry["day"], today)
 
                 should_remind_today = remaining <= entry["remind_days_before"]
@@ -55,11 +53,10 @@ class ReminderLoop(commands.Cog):
                 discord_user = discord_user or await self._fetch_user(int(user_id))
                 if discord_user:
                     await self._send_special_day_dm(discord_user, entry, remaining)
-                    entry["last_reminded_date"] = today.isoformat()
-                    changed = True
+                    await dm.update_special_day_reminded(user_id, entry["id"], today.isoformat())
 
             # --- Daily tasks ---
-            for entry in user_data.get("tasks", []):
+            for entry in user_data["tasks"]:
                 last = entry.get("last_reminded_at")
                 if last is None:
                     due = True
@@ -73,11 +70,7 @@ class ReminderLoop(commands.Cog):
                 discord_user = discord_user or await self._fetch_user(int(user_id))
                 if discord_user:
                     await self._send_task_dm(discord_user, entry)
-                    entry["last_reminded_at"] = now_iso
-                    changed = True
-
-        if changed:
-            dm.save_data(data)
+                    await dm.update_task_reminded(user_id, entry["id"], now.isoformat())
 
     @reminder_task.before_loop
     async def before_reminder(self):

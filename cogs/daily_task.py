@@ -108,8 +108,7 @@ class DailyTask(commands.Cog):
             freq_minutes = view.value
 
         # Save
-        data = dm.load_data()
-        dm.add_task(data, str(interaction.user.id), name=task_name, frequency_minutes=freq_minutes)
+        await dm.add_task(str(interaction.user.id), name=task_name, frequency_minutes=freq_minutes)
 
         embed = discord.Embed(title="✅ Đã đặt lịch công việc!", color=discord.Color.green())
         embed.add_field(name="Công việc", value=task_name, inline=True)
@@ -153,8 +152,7 @@ class DailyTask(commands.Cog):
         else:
             freq_minutes = view.value
 
-        data = dm.load_data()
-        dm.add_task(data, str(ctx.author.id), name=task_name, frequency_minutes=freq_minutes)
+        await dm.add_task(str(ctx.author.id), name=task_name, frequency_minutes=freq_minutes)
 
         embed = discord.Embed(title="✅ Đã đặt lịch công việc!", color=discord.Color.green())
         embed.add_field(name="Công việc", value=task_name, inline=True)

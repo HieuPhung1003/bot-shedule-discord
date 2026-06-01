@@ -35,8 +35,7 @@ class ConfirmView(discord.ui.View):
 
     @discord.ui.button(label="Hủy lịch này", style=discord.ButtonStyle.danger)
     async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
-        data = dm.load_data()
-        success = dm.remove_entry(data, str(interaction.user.id), self.entry_type, self.entry_id)
+        success = await dm.remove_entry(str(interaction.user.id), self.entry_type, self.entry_id)
         if success:
             await interaction.response.send_message(
                 f"✅ Đã hủy lịch **{self.name}**.", ephemeral=True
@@ -55,18 +54,22 @@ class CancelSchedule(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    def _build_options(self, user: dict):
+    def _build_options(self, special_days: list, tasks: list):
         entries, options = [], []
-        for s in user.get("special_days", []):
+        for s in special_days:
             entries.append({"id": s["id"], "type": "special_days", "name": s["name"]})
             options.append(discord.SelectOption(
                 label=f"🎉 {s['name']}",
                 description=f"{s['day']}/{s['month']} | nhắc lúc {s['remind_time']}",
                 value=s["id"],
             ))
-        for t in user.get("tasks", []):
+        for t in tasks:
             freq = t["frequency_minutes"]
-            freq_label = f"{freq // 1440} ngày" if freq % 1440 == 0 else f"{freq // 60} giờ" if freq % 60 == 0 else f"{freq} phút"
+            freq_label = (
+                f"{freq // 1440} ngày" if freq % 1440 == 0
+                else f"{freq // 60} giờ" if freq % 60 == 0
+                else f"{freq} phút"
+            )
             entries.append({"id": t["id"], "type": "tasks", "name": t["name"]})
             options.append(discord.SelectOption(
                 label=f"📝 {t['name']}",
@@ -77,13 +80,14 @@ class CancelSchedule(commands.Cog):
 
     @app_commands.command(name="hủy-hẹn", description="Hủy một lịch nhắc nhở")
     async def cancel_schedule(self, interaction: discord.Interaction):
-        data = dm.load_data()
-        user = dm.get_user(data, str(interaction.user.id))
-        entries, options = self._build_options(user)
+        user_id = str(interaction.user.id)
+        special_days = await dm.get_special_days(user_id)
+        tasks = await dm.get_tasks(user_id)
+        entries, options = self._build_options(special_days, tasks)
 
         if not options:
             await interaction.response.send_message(
-                "Bạn chưa có lịch nhắc nhở nào. Dùng `/schedule-special` hoặc `/schedule-task` để tạo mới.",
+                "Bạn chưa có lịch nhắc nhở nào.",
                 ephemeral=True,
             )
             return
@@ -94,12 +98,12 @@ class CancelSchedule(commands.Cog):
             "🗑️ **Chọn lịch muốn hủy:**", view=view, ephemeral=True
         )
 
-
     @commands.command(name="hủy-hẹn")
     async def cancel_schedule_prefix(self, ctx: commands.Context):
-        data = dm.load_data()
-        user = dm.get_user(data, str(ctx.author.id))
-        entries, options = self._build_options(user)
+        user_id = str(ctx.author.id)
+        special_days = await dm.get_special_days(user_id)
+        tasks = await dm.get_tasks(user_id)
+        entries, options = self._build_options(special_days, tasks)
 
         if not options:
             await ctx.send("Bạn chưa có lịch nhắc nhở nào.")

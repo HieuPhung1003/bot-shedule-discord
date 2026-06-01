@@ -2,7 +2,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from utils.data_manager import get_weekly_schedule, set_weekly_schedule
+from utils import data_manager as dm
 
 DAYS = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"]
 DAY_FULL = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "CN"]
@@ -163,7 +163,7 @@ class ConfirmButton(discord.ui.Button):
         if interaction.user.id != view.owner_id:
             await interaction.response.send_message("Đây không phải lịch của bạn.", ephemeral=True)
             return
-        set_weekly_schedule(str(interaction.user.id), view.schedule)
+        await dm.set_weekly_schedule(str(interaction.user.id), view.schedule)
         for child in view.children:
             child.disabled = True
         embed = _build_setup_embed(view.schedule)
@@ -205,27 +205,27 @@ class WeeklySchedule(commands.Cog):
 
     @app_commands.command(name="lịch-tuần", description="Thiết lập lịch hoạt động trong tuần")
     async def setup_weekly(self, interaction: discord.Interaction):
-        schedule = get_weekly_schedule(str(interaction.user.id))
+        schedule = await dm.get_weekly_schedule(str(interaction.user.id))
         view = WeeklySetupView(interaction.user.id, schedule)
         embed = _build_setup_embed(schedule)
         await interaction.response.send_message(embed=embed, view=view)
 
     @commands.command(name="lịch-tuần")
     async def setup_weekly_prefix(self, ctx: commands.Context):
-        schedule = get_weekly_schedule(str(ctx.author.id))
+        schedule = await dm.get_weekly_schedule(str(ctx.author.id))
         view = WeeklySetupView(ctx.author.id, schedule)
         embed = _build_setup_embed(schedule)
         await ctx.send(embed=embed, view=view)
 
     @app_commands.command(name="xem-lịch-tuần", description="Xem lịch hoạt động trong tuần")
     async def view_weekly(self, interaction: discord.Interaction):
-        schedule = get_weekly_schedule(str(interaction.user.id))
+        schedule = await dm.get_weekly_schedule(str(interaction.user.id))
         embed = _build_view_embed(schedule, interaction.user.display_name)
         await interaction.response.send_message(embed=embed)
 
     @commands.command(name="xem-lịch-tuần")
     async def view_weekly_prefix(self, ctx: commands.Context):
-        schedule = get_weekly_schedule(str(ctx.author.id))
+        schedule = await dm.get_weekly_schedule(str(ctx.author.id))
         embed = _build_view_embed(schedule, ctx.author.display_name)
         await ctx.send(embed=embed)
 

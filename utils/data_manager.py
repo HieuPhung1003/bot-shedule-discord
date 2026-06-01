@@ -1,31 +1,59 @@
-import json
-import os
 import uuid
-from typing import Optional
 
-DATA_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), "schedule_data.json")
+import asyncpg
 
+_pool: asyncpg.Pool | None = None
 
-def load_data() -> dict:
-    if not os.path.exists(DATA_FILE):
-        return {"users": {}}
-    with open(DATA_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
+_WEEK_DAYS = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"]
 
 
-def save_data(data: dict) -> None:
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+async def init_db(pool: asyncpg.Pool) -> None:
+    global _pool
+    _pool = pool
+    async with pool.acquire() as conn:
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS special_days (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                month INTEGER NOT NULL,
+                day INTEGER NOT NULL,
+                remind_days_before INTEGER NOT NULL,
+                recurring_daily BOOLEAN NOT NULL,
+                remind_time TEXT NOT NULL,
+                last_reminded_date TEXT
+            )
+        """)
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS tasks (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                frequency_minutes INTEGER NOT NULL,
+                last_reminded_at TEXT
+            )
+        """)
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS weekly_slots (
+                user_id TEXT NOT NULL,
+                day TEXT NOT NULL,
+                period TEXT NOT NULL,
+                task TEXT NOT NULL,
+                time_from TEXT,
+                time_to TEXT,
+                PRIMARY KEY (user_id, day, period)
+            )
+        """)
 
 
-def get_user(data: dict, user_id: str) -> dict:
-    if user_id not in data["users"]:
-        data["users"][user_id] = {"special_days": [], "tasks": []}
-    return data["users"][user_id]
+async def close() -> None:
+    if _pool:
+        await _pool.close()
 
 
-def add_special_day(
-    data: dict,
+# ── Special Days ──────────────────────────────────────────────────────────────
+
+async def add_special_day(
     user_id: str,
     name: str,
     month: int,
@@ -34,83 +62,131 @@ def add_special_day(
     recurring_daily: bool,
     remind_time: str,
 ) -> str:
-    user = get_user(data, user_id)
-    entry = {
-        "id": str(uuid.uuid4()),
-        "name": name,
-        "month": month,
-        "day": day,
-        "remind_days_before": remind_days_before,
-        "recurring_daily": recurring_daily,
-        "remind_time": remind_time,
-        "last_reminded_date": None,
-    }
-    user["special_days"].append(entry)
-    save_data(data)
-    return entry["id"]
+    entry_id = str(uuid.uuid4())
+    await _pool.execute(
+        """
+        INSERT INTO special_days
+            (id, user_id, name, month, day, remind_days_before, recurring_daily, remind_time)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        """,
+        entry_id, user_id, name, month, day, remind_days_before, recurring_daily, remind_time,
+    )
+    return entry_id
 
 
-def add_task(data: dict, user_id: str, name: str, frequency_minutes: int) -> str:
-    user = get_user(data, user_id)
-    entry = {
-        "id": str(uuid.uuid4()),
-        "name": name,
-        "frequency_minutes": frequency_minutes,
-        "last_reminded_at": None,
-    }
-    user["tasks"].append(entry)
-    save_data(data)
-    return entry["id"]
+async def get_special_days(user_id: str) -> list[dict]:
+    rows = await _pool.fetch("SELECT * FROM special_days WHERE user_id = $1", user_id)
+    return [dict(r) for r in rows]
 
 
-def remove_entry(data: dict, user_id: str, entry_type: str, entry_id: str) -> bool:
-    user = get_user(data, user_id)
-    original = user[entry_type]
-    filtered = [e for e in original if e["id"] != entry_id]
-    if len(filtered) == len(original):
-        return False
-    user[entry_type] = filtered
-    save_data(data)
-    return True
+async def remove_special_day(user_id: str, entry_id: str) -> bool:
+    result = await _pool.execute(
+        "DELETE FROM special_days WHERE id = $1 AND user_id = $2", entry_id, user_id
+    )
+    return result == "DELETE 1"
 
 
-def update_special_day_reminded(data: dict, user_id: str, entry_id: str, date_str: str) -> None:
-    user = get_user(data, user_id)
-    for entry in user["special_days"]:
-        if entry["id"] == entry_id:
-            entry["last_reminded_date"] = date_str
-            break
-    save_data(data)
+async def update_special_day_reminded(user_id: str, entry_id: str, date_str: str) -> None:
+    await _pool.execute(
+        "UPDATE special_days SET last_reminded_date = $1 WHERE id = $2 AND user_id = $3",
+        date_str, entry_id, user_id,
+    )
 
 
-def update_task_reminded(data: dict, user_id: str, entry_id: str, datetime_str: str) -> None:
-    user = get_user(data, user_id)
-    for entry in user["tasks"]:
-        if entry["id"] == entry_id:
-            entry["last_reminded_at"] = datetime_str
-            break
-    save_data(data)
+# ── Tasks ─────────────────────────────────────────────────────────────────────
+
+async def add_task(user_id: str, name: str, frequency_minutes: int) -> str:
+    entry_id = str(uuid.uuid4())
+    await _pool.execute(
+        "INSERT INTO tasks (id, user_id, name, frequency_minutes) VALUES ($1, $2, $3, $4)",
+        entry_id, user_id, name, frequency_minutes,
+    )
+    return entry_id
 
 
-_WEEK_DAYS = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"]
+async def get_tasks(user_id: str) -> list[dict]:
+    rows = await _pool.fetch("SELECT * FROM tasks WHERE user_id = $1", user_id)
+    return [dict(r) for r in rows]
 
+
+async def remove_task(user_id: str, entry_id: str) -> bool:
+    result = await _pool.execute(
+        "DELETE FROM tasks WHERE id = $1 AND user_id = $2", entry_id, user_id
+    )
+    return result == "DELETE 1"
+
+
+async def update_task_reminded(user_id: str, entry_id: str, datetime_str: str) -> None:
+    await _pool.execute(
+        "UPDATE tasks SET last_reminded_at = $1 WHERE id = $2 AND user_id = $3",
+        datetime_str, entry_id, user_id,
+    )
+
+
+async def remove_entry(user_id: str, entry_type: str, entry_id: str) -> bool:
+    if entry_type == "special_days":
+        return await remove_special_day(user_id, entry_id)
+    elif entry_type == "tasks":
+        return await remove_task(user_id, entry_id)
+    return False
+
+
+# ── Weekly Schedule ───────────────────────────────────────────────────────────
 
 def _empty_weekly() -> dict:
     return {d: {"sang": None, "toi": None} for d in _WEEK_DAYS}
 
 
-def get_weekly_schedule(user_id: str) -> dict:
-    data = load_data()
-    stored = data["users"].get(user_id, {}).get("weekly_schedule")
-    if not stored:
-        return _empty_weekly()
+async def get_weekly_schedule(user_id: str) -> dict:
+    rows = await _pool.fetch(
+        "SELECT day, period, task, time_from, time_to FROM weekly_slots WHERE user_id = $1",
+        user_id,
+    )
     schedule = _empty_weekly()
-    schedule.update(stored)
+    for r in rows:
+        schedule[r["day"]][r["period"]] = {
+            "task": r["task"],
+            "from": r["time_from"] or "",
+            "to": r["time_to"] or "",
+        }
     return schedule
 
 
-def set_weekly_schedule(user_id: str, schedule: dict) -> None:
-    data = load_data()
-    user = get_user(data, user_id)
-    user["weekly_schedule"] = schedule
-    save_data(data)
+async def set_weekly_schedule(user_id: str, schedule: dict) -> None:
+    async with _pool.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute("DELETE FROM weekly_slots WHERE user_id = $1", user_id)
+            for day, periods in schedule.items():
+                for period, entry in periods.items():
+                    if entry and entry.get("task"):
+                        await conn.execute(
+                            """
+                            INSERT INTO weekly_slots
+                                (user_id, day, period, task, time_from, time_to)
+                            VALUES ($1, $2, $3, $4, $5, $6)
+                            """,
+                            user_id, day, period, entry["task"],
+                            entry.get("from") or None,
+                            entry.get("to") or None,
+                        )
+
+
+# ── Reminder loop ─────────────────────────────────────────────────────────────
+
+async def get_all_reminder_data() -> dict[str, dict]:
+    """Returns {user_id: {"special_days": [...], "tasks": [...]}}"""
+    sd_rows = await _pool.fetch("SELECT * FROM special_days")
+    task_rows = await _pool.fetch("SELECT * FROM tasks")
+
+    result: dict[str, dict] = {}
+    for r in sd_rows:
+        uid = r["user_id"]
+        if uid not in result:
+            result[uid] = {"special_days": [], "tasks": []}
+        result[uid]["special_days"].append(dict(r))
+    for r in task_rows:
+        uid = r["user_id"]
+        if uid not in result:
+            result[uid] = {"special_days": [], "tasks": []}
+        result[uid]["tasks"].append(dict(r))
+    return result
